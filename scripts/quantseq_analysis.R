@@ -46,7 +46,7 @@ if(file.exists(design.file)){
   design = design[, c(jj, setdiff(c(1:ncol(design)), jj))]
   
   # select columns to keep
-  col2keep = c("Sample.ID", "Genetic.Background", "Stage", "Treatment" )
+  col2keep = c("Sample.ID", "Brief.Sample.Description", "Brief.Sample.Description")
   design = design[, match(col2keep, colnames(design))]
   colnames(design) = c('SampleID', 'strain', 'stage', 'treatment')
   design$condition = NA
