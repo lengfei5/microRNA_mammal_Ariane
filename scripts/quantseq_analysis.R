@@ -46,65 +46,35 @@ if(file.exists(design.file)){
   design = design[, c(jj, setdiff(c(1:ncol(design)), jj))]
   
   # select columns to keep
-  col2keep = c("Sample.ID", "Brief.Sample.Description", "Brief.Sample.Description")
+  col2keep = c("Sample.ID", "Brief.Sample.Description")
   design = design[, match(col2keep, colnames(design))]
-  colnames(design) = c('SampleID', 'strain', 'stage', 'treatment')
-  design$condition = NA
+  colnames(design) = c('SampleID', 'condition')
+  #design$condition = NA
   
-  Extract.Emilio.Paula.data = FALSE
-  if(Extract.Emilio.Paula.data){
-    ## Emilio and Paula's data
-    jj = which(design$SampleID >= 100003 | design$strain == "MLC1384" | design$strain == "MT17810")
-    design$condition[jj] = design$treatment[jj] 
-  }else{
-    ## just select Philipp's data
-    kk = which(design$SampleID < 100003 & design$strain != "MLC1384" & design$strain != "MT17810")
-    design = design[kk, ]
-  }
- 
-  ####
+  ############
   ## manually prepare the design infos
-  ####
-  design$strain[grep('Arabidopsis', design$strain)] = "Ath"
-  design$strain[grep('H2O', design$strain)] = "H2O.control"
-  
-  design = design[which(design$strain != "Ath" & design$strain != "H2O.control"), ]
-  
-  design$stage[grep("cells", design$stage)] = "2cells"
-  design$stage[grep('fold', design$stage)] = "2.3.fold"
-  #design$stage[grep("-", design$stage)] = "none"
-  
-  design$condition[which(design$strain=="N2")] = "wt"
-  design$condition[which(design$strain=="MLC860")] = "pash1.ts"
-  design$condition[which(design$strain=="MLC1795")] = "pash1.ts.mirtron"
-  design$condition[which(design$strain=="MLC1726")] = "drosha.pash1.aid.RNAi"
-  design$condition[which(design$strain=="MLC1729")] = "drosha.pash1.aid.pash1.RNAi.mirtron"
-  #design$condition[which(design$strain=="MLC1729" & design$treatment == "pash-1 RNAi")] = "drosha.pash1.aid.pash1.RNAi.mirtron"
-  
-  design$condition[which(design$strain == "MT14533" & design$treatment == "20 degree")] = 'mir35.ko.20degree'
-  design$condition[which(design$strain == "MT14533" & design$treatment == "25 degree")] = 'mir35.ko.25degree'
-  #design$condition[which(is.na(design$condition))] = 'none'
-  
-  design = design[, -which(colnames(design)=="treatment")]
+  ############
+  design$condition = gsub(' - well *', '', design$condition)
+  design$condition = gsub(' 11d[1-2]', '', design$condition)
+  design$condition[grep('UN', design$condition)] = 'UN'
+  design$condition = gsub(' ', '.', design$condition)
   
 }
 
 ##########################################
-# processing count table, 
-# piRNAs total nb of reads and other stat numbers
-# spike-in 
+# processing count table of umi and read
 ##########################################
 # table for read counts and UMI
-Dir_umi = paste0(dataDir, "R8043_R8521_htseq_counts_BAMs_umi")
-Dir_read = paste0(dataDir, "R8043_R8521_htseq_counts_BAMs")
+Dir_umi = paste0(dataDir, "htseq_counts_BAMs_umi")
+Dir_read = paste0(dataDir, "htseq_counts_BAMs")
 
 source(RNAfunctions)
 
-aa1 <- list.files(path = Dir_umi, pattern = "*out_umiDedup", full.names = TRUE)
+aa1 <- list.files(path = Dir_umi, pattern = "*umiDedup.txt", full.names = TRUE)
 aa1 = merge.countTables.htseq(aa1)
 colnames(aa1)[-1] = paste0(colnames(aa1)[-1], ".UMI")
 
-aa2 <- list.files(path = Dir_read, pattern = "*.out", full.names = TRUE)
+aa2 <- list.files(path = Dir_read, pattern = "*.txt", full.names = TRUE)
 aa2 = merge.countTables.htseq(aa2)
 colnames(aa2)[-1] = paste0(colnames(aa2)[-1], ".readCount")
 
@@ -117,7 +87,7 @@ if(Compare.UMI.vs.readCounts){
   pdfname = paste0(resDir, "readCounts_vs_UMI_normalized", version.analysis, ".pdf")
   pdf(pdfname, width = 10, height = 8)
   
-  compare.readCount.UMI(design, aa, normalized = TRUE)
+  compare.readCount.UMI(design, aa, normalized = FALSE)
   
   dev.off()
 }
@@ -133,9 +103,8 @@ save(design, aa, file=paste0(RdataDir, 'Design_Raw_readCounts_UMI', version.anal
 ######################################
 ######################################
 Counts.to.Use = "UMI"
-QC.for.cpm = FALSE
+QC.for.cpm = TRUE
 EDA.with.normalized.table = FALSE
-Add.miRNA.Targets = TRUE
 
 load(file=paste0(RdataDir, 'Design_Raw_readCounts_UMI', version.analysis, '.Rdata'))
 source(RNAfunctions)
@@ -159,24 +128,9 @@ rownames(raw) = all$gene
 ###
 ### specify parameters for DESEeq2 and pairwise comparisons
 ###
-lowlyExpressed.readCount.threshold = 10
 require(DESeq2)
 source(RNA_QCfunctions)
-
-##########################################
-# process miRNA targets 
-##########################################
-if(Add.miRNA.Targets){
-  targets = read.xlsx('../data/examples_miRNA_targets.xlsx', sheet = 2)
-  targets = targets[-c(1), -c(1)]
-  colnames(targets) = as.character(targets[1, ])
-  targets = targets[-c(1:4), ]
-  targets = targets[, -ncol(targets)]
-  colnames(targets) = c('miR35', 'miR51', 'let7', 'lin4', 'miR58', 'miR1', 'miR35.miRanda')
-  
-  length(intersect(targets[,1], targets[, 2]))
-  length(intersect(targets[,3], targets[, 2]))
-}
+lowlyExpressed.readCount.threshold = 10
 
 ##########################################
 # quality control  
