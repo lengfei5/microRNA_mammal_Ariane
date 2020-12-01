@@ -5,8 +5,7 @@
 ## Author: Jingkui Wang (jingkui.wang@imp.ac.at)
 ## Date of creation: Wed Jan 24 12:50:51 2018
 ##################################################
-#library("openxlsx")
-require('DESeq2') 
+require('DESeq2')
 
 RNAfunctions = "/Volumes/groups/cochella/jiwang/scripts/functions/RNAseq_functions.R"
 RNA_QCfunctions =  "/Volumes/groups/cochella/jiwang/scripts/functions/RNAseq_QCs.R"
@@ -199,10 +198,12 @@ abline(h=c(0.1, 0.01), col = 'red', lwd=1.2)
 dds = nbinomWaldTest(dds, betaPrior = TRUE)
 resultsNames(dds)
 
+plotMA(dds, ylim = c(-1.5, 1.5))
+
 res = results(dds, contrast=c("condition", 'mir1.mutant', 'wt'))
 colnames(res) = paste0(colnames(res), '_', 'mir1.mutant', '.vs.wt')
 
-res = data.frame(res[, c(2, 5, 6)])
+res = data.frame(res[, c(1, 2, 5, 6)])
 
 plot(res$log2FoldChange_mir1.mutant.vs.wt, -log10(res$pvalue_mir1.mutant.vs.wt), cex = 0.7)
 kk = grep('vha|dct-1|tbc-7', rownames(res))
@@ -221,6 +222,46 @@ write.csv(xx,
 
 dev.off()
 
+saveRDS(res, file = paste0(resDir, 'DESeq2_result_saved.rds'))
+
+########################################################
+########################################################
+# Section : Valcano plot and MA plot with labels
+# 
+########################################################
+########################################################
+library(ggplot2)
+library(ggrepel)
+set.seed(42)
+
+res = readRDS(file = paste0(resDir, 'DESeq2_result_saved.rds'))
+res = data.frame(res, stringsAsFactors = FALSE)
+
+res$pvalue.log10 = -log10(res$pvalue_mir1.mutant.vs.wt)
+index.hight = unique(c(grep('vha', rownames(res)), which(rownames(res) == 'dct-1'), which(rownames(res) == 'tbc-7')))
+  
+res$gene = NA
+res$gene[index.hight] = rownames(res)[index.hight] 
+
+p1 <- ggplot(res, aes(log2FoldChange_mir1.mutant.vs.wt, pvalue.log10, label = gene)) +
+  geom_point(color = ifelse(!is.na(res$gene), "red", "gray70"), size = ifelse(!is.na(res$gene), 3, 1)) +
+  geom_text_repel(force = 5,
+                  #arrow = arrow(length = unit(0.03, "npc"), type = "closed", ends = "first"),
+                  direction     = "both", 
+                  point.padding = 0.1,
+                  segment.color = "grey40") 
+
+#p1 + ggsave(paste0(resDir, "volcano_plot_vha_complex_subunits.pdf"), width = 10, height = 5, dpi = "print")
+
+res$mean.log2 = log2(res$baseMean_mir1.mutant.vs.wt)
+ggplot(res, aes(mean.log2, log2FoldChange_mir1.mutant.vs.wt, label = gene)) +
+  geom_point(color = ifelse(!is.na(res$gene), "red", "gray70"), size = ifelse(!is.na(res$gene), 3, 1)) +
+  geom_text_repel(force = 1,
+                  #arrow = arrow(length = unit(0.03, "npc"), type = "closed", ends = "first"),
+                  direction     = "both", 
+                  point.padding = NA,
+                  segment.color = "grey40") +
+  geom_hline(yintercept=0, linetype="solid", color = "black")
 
 ########################################################
 ########################################################
@@ -230,15 +271,50 @@ dev.off()
 ########################################################
 library(enrichplot)
 library(clusterProfiler)
-library(DOSE)
-data(geneList)
+library(openxlsx)
+library(ggplot2)
 
+res = read.csv(file = paste0(resDir, "DESeq2.norm_all.mir1KO.vs.wt_", Counts.to.Use,  version.analysis, ".csv"), row.names = 1)
+geneList = res$log2FoldChange_mir1.mutant.vs.wt
+names(geneList) = rownames(res)
+geneList = geneList[which(!is.na(geneList))]
+geneList = geneList[order(-geneList)]
 
+##########################################
+# vha complex
+##########################################
+vha = read.xlsx(paste0(resDir, 'vha_genes.xlsx'), sheet = 1)
 
-edo2 <- gseNCG(geneList, nPerm=1000)
+vha.complex = data.frame(term = 'vha.complex', gene = vha$vha.genes, stringsAsFactors = FALSE)
 
-gseaplot2(edo2, geneSetID = 1, title = edo2$Description[1], pvalue_table = TRUE)
+gsea.vha <- GSEA(geneList, TERM2GENE = vha.complex, TERM2NAME = NA, nPerm = 10000)
+#edo2 <- gseNCG(geneList, nPerm=1000)
+gseaplot1 = gseaplot2(gsea.vha, geneSetID = 1, title = 'vha complex', pvalue_table = TRUE, subplots = c(1:2),
+          ES_geom = "line")
 
+gseaplot1 +
+  ggsave(paste0(resDir, "GSEA_vha.complex.pdf"), width = 10, height = 5, dpi = "print")
+
+##########################################
+# mir1 targets
+##########################################
+targets = read.xlsx(paste0(resDir, 'mir1_predicted_targets_TargetScanworm.xlsx'), sheet = 1)
+targets = targets[!is.na(match(targets$Gene.symbol, names(geneList))), ]
+
+kk = which(as.numeric(targets$Aggregate.PCT) >0.7)
+
+mir1.targets = data.frame(term = 'mir1.targets', gene = targets$Gene.symbol[kk],
+                          stringsAsFactors = FALSE)
+mir1.targets = mir1.targets[which(!is.na(mir1.targets$gene)), ]
+
+gsea.mir1 <- GSEA(geneList, TERM2GENE = mir1.targets, TERM2NAME = NA, nPerm = 1000)
+
+#edo2 <- gseNCG(geneList, nPerm=1000)
+gseaplot2 = gseaplot2(gsea.mir1, geneSetID = 1, title = 'mir1.targets', pvalue_table = TRUE, subplots = c(1:2),
+                      ES_geom = "line")
+
+gseaplot2 +
+  ggsave(paste0(resDir, "GSEA_mir1.targets.pdf"), width = 10, height = 5, dpi = "print")
 
 
 
