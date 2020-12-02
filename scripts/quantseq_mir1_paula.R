@@ -11,8 +11,8 @@ RNAfunctions = "/Volumes/groups/cochella/jiwang/scripts/functions/RNAseq_functio
 RNA_QCfunctions =  "/Volumes/groups/cochella/jiwang/scripts/functions/RNAseq_QCs.R"
 
 ### data verision and analysis version
-version.Data = 'Paula_Quantseq_R10603_quantseq_ce'
-version.analysis = paste0("_", version.Data, "_20201127")
+version.Data = 'Paula_Quantseq_R10603_quantseq_ce_redoDemultiplexing'
+version.analysis = paste0("_", version.Data, "_20201201")
 
 # Counts.to.Use = "UMIfr"
 Save.Tables = TRUE
@@ -21,7 +21,7 @@ check.quality.by.sample.comparisons = FALSE
 
 ### Directories to save results
 #design.file = "../exp_design/R10331_quantseq_hg_KO_lines.xlsx"
-dataDir = "../../../Paula/R10603_quantseq_redo_pairend/"
+dataDir = "../../../Paula/R10603_quantseq_redemultiplexed_pairend/"
 
 resDir = paste0("../results/", version.Data, "/")
 tabDir =  paste0(resDir, "tables/")
@@ -274,11 +274,13 @@ library(clusterProfiler)
 library(openxlsx)
 library(ggplot2)
 
-res = read.csv(file = paste0(resDir, "DESeq2.norm_all.mir1KO.vs.wt_", Counts.to.Use,  version.analysis, ".csv"), row.names = 1)
+#res = read.csv(file = paste0(resDir, "DESeq2.norm_all.mir1KO.vs.wt_", Counts.to.Use,  version.analysis, ".csv"), row.names = 1)
+res = readRDS(file = paste0(resDir, 'DESeq2_result_saved.rds'))
 geneList = res$log2FoldChange_mir1.mutant.vs.wt
 names(geneList) = rownames(res)
 geneList = geneList[which(!is.na(geneList))]
 geneList = geneList[order(-geneList)]
+
 
 ##########################################
 # vha complex
@@ -301,9 +303,9 @@ gseaplot1 +
 targets = read.xlsx(paste0(resDir, 'mir1_predicted_targets_TargetScanworm.xlsx'), sheet = 1)
 targets = targets[!is.na(match(targets$Gene.symbol, names(geneList))), ]
 
-kk = which(as.numeric(targets$Aggregate.PCT) >0.7)
+#kk = which(as.numeric(targets$Aggregate.PCT) >0.7)
 
-mir1.targets = data.frame(term = 'mir1.targets', gene = targets$Gene.symbol[kk],
+mir1.targets = data.frame(term = 'mir1.targets', gene = targets$Gene.symbol,
                           stringsAsFactors = FALSE)
 mir1.targets = mir1.targets[which(!is.na(mir1.targets$gene)), ]
 
@@ -315,6 +317,28 @@ gseaplot2 = gseaplot2(gsea.mir1, geneSetID = 1, title = 'mir1.targets', pvalue_t
 
 gseaplot2 +
   ggsave(paste0(resDir, "GSEA_mir1.targets.pdf"), width = 10, height = 5, dpi = "print")
+
+
+
+##########################################
+# go term enrichment analysis
+##########################################
+annot = read.csv(file = "/Volumes/groups/cochella/jiwang//annotations/BioMart_WBcel235_noFilters.csv", 
+                 header = TRUE, stringsAsFactors = FALSE)
+library(org.Ce.eg.db)
+
+ensname = annot$Gene.stable.ID[match(rownames(res), annot$Gene.name)]
+geneList = ensname[which(res$pvalue_mir1.mutant.vs.wt<0.05)]
+
+ego <-  enrichGO(gene         = geneList,
+                 OrgDb         = org.Ce.eg.db,
+                 keyType       = 'ENSEMBL',
+                 ont           = "CC",
+                 pAdjustMethod = "BH",
+                 pvalueCutoff  = 0.01,
+                 qvalueCutoff  = 0.05)
+head(ego)
+
 
 
 
