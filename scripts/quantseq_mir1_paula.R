@@ -323,22 +323,37 @@ gseaplot2 +
 ##########################################
 # go term enrichment analysis
 ##########################################
+library(org.Ce.eg.db)
+library(enrichplot)
+
 annot = read.csv(file = "/Volumes/groups/cochella/jiwang//annotations/BioMart_WBcel235_noFilters.csv", 
                  header = TRUE, stringsAsFactors = FALSE)
-library(org.Ce.eg.db)
 
 ensname = annot$Gene.stable.ID[match(rownames(res), annot$Gene.name)]
-geneList = ensname[which(res$pvalue_mir1.mutant.vs.wt<0.05)]
+
+geneList = ensname[which(res$pvalue_mir1.mutant.vs.wt<0.05 & res$log2FoldChange_mir1.mutant.vs.wt >0)]
 
 ego <-  enrichGO(gene         = geneList,
+                 universe     = ensname,
                  OrgDb         = org.Ce.eg.db,
                  keyType       = 'ENSEMBL',
-                 ont           = "CC",
+                 ont           = "ALL",
                  pAdjustMethod = "BH",
                  pvalueCutoff  = 0.01,
                  qvalueCutoff  = 0.05)
 head(ego)
 
+barplot(ego, showCategory=30)
 
+kk <- enrichKEGG(gene         = geneList,
+                 organism     = 'cel',
+                 universe     = ensname,
+                 pvalueCutoff = 0.05)
+head(kk)
+
+barplot(kk, showCategory=30)
+
+write.csv(ego, file = paste0(resDir, "GO_term_enrichmenet_for_upregulated_genes_pval_0.05.csv"), 
+          row.names = TRUE)
 
 
