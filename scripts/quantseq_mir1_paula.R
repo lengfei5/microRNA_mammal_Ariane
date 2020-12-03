@@ -323,17 +323,35 @@ gseaplot2 +
 ##########################################
 # go term enrichment analysis
 ##########################################
-library(org.Ce.eg.db)
 library(enrichplot)
+library(clusterProfiler)
+library(openxlsx)
+library(ggplot2)
+library(stringr)
+library(org.Ce.eg.db)
 
 annot = read.csv(file = "/Volumes/groups/cochella/jiwang//annotations/BioMart_WBcel235_noFilters.csv", 
                  header = TRUE, stringsAsFactors = FALSE)
 
+annot$uniprot = annot$Gene.description
+xx = annot$uniprot
+annot$uniprot = sapply(xx, function(x) unlist(strsplit(str_match(x, "(?<=\\[).+?(?=\\])")[1, 1], ':'))[3])
+
 ensname = annot$Gene.stable.ID[match(rownames(res), annot$Gene.name)]
+uniprotnames = annot$uniprot[match(rownames(res), annot$Gene.name)]
 
-geneList = ensname[which(res$pvalue_mir1.mutant.vs.wt<0.05 & res$log2FoldChange_mir1.mutant.vs.wt >0)]
+pval.cutoff = 0.05
 
-ego <-  enrichGO(gene         = geneList,
+pdfname = paste0(resDir, "/GO.Terms_enrichment_mir1.mutant_upregulated_downregulated_genes.pdf")
+pdf(pdfname, width = 12, height = 10)
+par(cex = 1.0, las = 1, mgp = c(2,0.2,0), mar = c(3,2,2,0.2), tcl = -0.3)
+
+kk.up = which(res$pvalue_mir1.mutant.vs.wt < pval.cutoff & res$log2FoldChange_mir1.mutant.vs.wt > 0)
+kk.down = which(res$pvalue_mir1.mutant.vs.wt < pval.cutoff & res$log2FoldChange_mir1.mutant.vs.wt < 0)
+cat('nb of upregulated genes : ', length(kk.up), '\n')
+cat('nb of downregulated genes : ', length(kk.down), '\n')
+
+ego.up <-  enrichGO(gene         = ensname[kk.up],
                  universe     = ensname,
                  OrgDb         = org.Ce.eg.db,
                  keyType       = 'ENSEMBL',
@@ -341,19 +359,44 @@ ego <-  enrichGO(gene         = geneList,
                  pAdjustMethod = "BH",
                  pvalueCutoff  = 0.01,
                  qvalueCutoff  = 0.05)
-head(ego)
+head(ego.up)
+barplot(ego.up, showCategory=20) + ggtitle("go term for upregulated genes")
 
-barplot(ego, showCategory=30)
+ego.down <-  enrichGO(gene         = ensname[kk.down],
+                    universe     = ensname,
+                    OrgDb         = org.Ce.eg.db,
+                    keyType       = 'ENSEMBL',
+                    ont           = "ALL",
+                    pAdjustMethod = "BH",
+                    pvalueCutoff  = 0.01,
+                    qvalueCutoff  = 0.05)
+head(ego.down)
+barplot(ego.down, showCategory=20) + ggtitle("go term for downregulated genes")
 
-kk <- enrichKEGG(gene         = geneList,
-                 organism     = 'cel',
-                 universe     = ensname,
-                 pvalueCutoff = 0.05)
-head(kk)
-
-barplot(kk, showCategory=30)
-
-write.csv(ego, file = paste0(resDir, "GO_term_enrichmenet_for_upregulated_genes_pval_0.05.csv"), 
+write.csv(ego.up, file = paste0(resDir, "GO_term_enrichmenet_for_upregulated_genes_pval_0.05.csv"), 
           row.names = TRUE)
+
+write.csv(ego.down, file = paste0(resDir, "GO_term_enrichmenet_for_downregulated_genes_pval_0.05.csv"), 
+          row.names = TRUE)
+
+# kegg.up <- enrichKEGG(gene         = uniprotnames[kk.up],
+#                  organism     = 'cel',
+#                  universe     = uniprotnames,
+#                  keyType = 'uniprot',
+#                  pvalueCutoff = 0.05)
+# head(kegg.up)
+# barplot(kegg.up, showCategory=20) + ggtitle("kegg for upregulated genes")
+# 
+# 
+# kegg.down <- enrichKEGG(gene         = uniprotnames[kk.down],
+#                       organism     = 'cel',
+#                       universe     = uniprotnames,
+#                       keyType = 'uniprot',
+#                       pvalueCutoff = 0.2)
+# head(kegg.down)
+# 
+# barplot(kegg.down, showCategory=20) + ggtitle("kegg for upregulated genes")
+
+dev.off()
 
 
