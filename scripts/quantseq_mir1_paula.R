@@ -105,6 +105,9 @@ raw = ceiling(as.matrix(all[, -1]))
 raw[which(is.na(raw))] = 0
 rownames(raw) = all$gene
 
+write.table(raw, file = paste0(tabDir, "QuantSeq_all_samples_umi_count.txt"), sep = '\t', col.names = TRUE, quote = FALSE, 
+          row.names = TRUE)
+
 ###
 ### specify parameters for DESEeq2 and pairwise comparisons
 ###

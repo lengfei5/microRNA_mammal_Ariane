@@ -13,6 +13,7 @@ RNA_QCfunctions =  "/Volumes/groups/cochella/jiwang/scripts/functions/RNAseq_QCs
 
 ### data verision and analysis version
 version.Data = 'Quantseq_R10331_quantseq_hg'
+
 version.analysis = paste0("_", version.Data, "_20201030")
 
 # Counts.to.Use = "UMIfr"
