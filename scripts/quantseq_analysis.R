@@ -12,9 +12,9 @@ RNAfunctions = "/Volumes/groups/cochella/jiwang/scripts/functions/RNAseq_functio
 RNA_QCfunctions =  "/Volumes/groups/cochella/jiwang/scripts/functions/RNAseq_QCs.R"
 
 ### data verision and analysis version
-version.Data = 'Quantseq_R10331_quantseq_hg'
+version.Data = 'Quantseq_R11129_quantseq_hg'
 
-version.analysis = paste0("_", version.Data, "_20201030")
+version.analysis = paste0("_", version.Data, "_20210402")
 
 # Counts.to.Use = "UMIfr"
 Save.Tables = TRUE
@@ -22,8 +22,8 @@ check.quality.by.sample.comparisons = FALSE
 
 
 ### Directories to save results
-design.file = "../exp_design/R10331_quantseq_hg_KO_lines.xlsx"
-dataDir = "../../R10331_quantseq_hg/"
+design.file = "../exp_design/R11129_quantseq_hg_KO_lines.xlsx"
+dataDir = "../../R11129_quantseq_hg/"
 
 resDir = paste0("../results/", version.Data, "/")
 tabDir =  paste0(resDir, "tables/")
@@ -41,24 +41,28 @@ if(file.exists(design.file)){
   design = read.xlsx(design.file, sheet = 1, colNames = TRUE, skipEmptyRows = TRUE)
   
   design = data.frame(design, stringsAsFactors = FALSE)
-  design = design[which(!is.na(design$Sample.ID)), ]
+  design = design[which(!is.na(design$sample.ID)), ]
   
   jj = which(colnames(design) == 'Sample.ID')
   design = design[, c(jj, setdiff(c(1:ncol(design)), jj))]
   
   # select columns to keep
-  col2keep = c("Sample.ID", "Brief.Sample.Description")
-  design = design[, match(col2keep, colnames(design))]
+  #col2keep = c("Sample.ID", "Brief.Sample.Description")
+  #design = design[, match(col2keep, colnames(design))]
+  design = design[, c(1:2)]
   colnames(design) = c('SampleID', 'condition')
   #design$condition = NA
   
   ############
   ## manually prepare the design infos
   ############
-  design$condition = gsub(' - well *', '', design$condition)
-  design$condition = gsub(' 11d[1-2]', '', design$condition)
-  design$condition[grep('UN', design$condition)] = 'UN'
-  design$condition = gsub(' ', '.', design$condition)
+  Manual.correct.sampleInfos =  FALSE
+  if(Manual.correct.sampleInfos){
+    design$condition = gsub(' - well *', '', design$condition)
+    design$condition = gsub(' 11d[1-2]', '', design$condition)
+    design$condition[grep('UN', design$condition)] = 'UN'
+    design$condition = gsub(' ', '.', design$condition)
+  }
   
 }
 
@@ -83,7 +87,7 @@ aa <- Reduce(function(dtf1, dtf2) merge(dtf1, dtf2, by = "gene", all = TRUE), li
 
 ## compare read counts vs. umi counts
 source(RNAfunctions)
-Compare.UMI.vs.readCounts = FALSE
+Compare.UMI.vs.readCounts = TRUE
 if(Compare.UMI.vs.readCounts){
   pdfname = paste0(resDir, "readCounts_vs_UMI_normalized", version.analysis, ".pdf")
   pdf(pdfname, width = 10, height = 8)
@@ -167,8 +171,9 @@ if(EDA.with.normalized.table){
   #source(RNAfunctions)
   dds <- DESeqDataSetFromMatrix(raw, 
                                 DataFrame(design[samples.sels, ]), 
-                                design = ~ condition + stage)
-  lowlyExpressed.readCount.threshold = 20
+                                design = ~ condition)
+  
+  
   dds <- dds[ rowSums(counts(dds)) >= lowlyExpressed.readCount.threshold, ]
   dds <- estimateSizeFactors(dds)
   
@@ -197,7 +202,8 @@ par(cex = 1.0, las = 1, mgp = c(2,0.2,0), mar = c(3,2,2,0.2), tcl = -0.3)
 
 ##  start DE analysis
 dds <- DESeqDataSetFromMatrix(raw[, samples.sels], DataFrame(design[samples.sels, ]), design = ~ condition)
-dds$condition = relevel(dds$condition, "UN")
+
+dds$condition = relevel(dds$condition, "UN.6d")
 
 dds <- dds[ rowSums(counts(dds)) >= lowlyExpressed.readCount.threshold, ]
 dds <- estimateSizeFactors(dds)
@@ -217,24 +223,42 @@ abline(h=c(0.1, 0.01), col = 'red', lwd=1.2)
 dds = nbinomWaldTest(dds, betaPrior = TRUE)
 resultsNames(dds)
 
-res.ii = results(dds, contrast=c("condition", 'AAVS1.KO', 'UN'))
-colnames(res.ii) = paste0(colnames(res.ii), '_', 'AAVS1.KO', '.vs.UN')
+##########################################
+# manually specify pairwise comparisons
+##########################################
+res.ii = results(dds, contrast=c("condition", 'AAVS1KO.6d', 'UN.6d'))
+names.compare = paste0(unlist(strsplit(as.character(res.ii@elementMetadata$description[2]), ' '))[6:8], collapse = '_') 
+colnames(res.ii) = paste0(colnames(res.ii), '_', names.compare)
 res = data.frame(res.ii[, c(2, 5, 6)])
 
-res.ii = results(dds, contrast=c("condition", 'TRIM52.KO', 'UN'))
-colnames(res.ii) = paste0(colnames(res.ii), '_', 'TRIM52.KO', '.vs.UN')
+res.ii = results(dds, contrast=c("condition", 'TRIM52KO.6d', 'UN.6d'))
+names.compare = paste0(unlist(strsplit(as.character(res.ii@elementMetadata$description[2]), ' '))[6:8], collapse = '_') 
+colnames(res.ii) = paste0(colnames(res.ii), '_', names.compare)
 res = data.frame(res, res.ii[, c(2, 5, 6)])
 
-res.ii = results(dds, contrast=c("condition", 'DRO.KO', 'UN'))
-colnames(res.ii) = paste0(colnames(res.ii), '_', 'DRO.KO', '.vs.UN')
+res.ii = results(dds, contrast=c("condition", 'AAVS1KO.11d', 'UN.11d'))
+names.compare = paste0(unlist(strsplit(as.character(res.ii@elementMetadata$description[2]), ' '))[6:8], collapse = '_') 
+colnames(res.ii) = paste0(colnames(res.ii), '_', names.compare)
 res = data.frame(res, res.ii[, c(2, 5, 6)])
 
-res.ii = results(dds, contrast=c("condition", 'DGCR8.KO', 'UN'))
-colnames(res.ii) = paste0(colnames(res.ii), '_', 'DGCR8.KO', '.vs.UN')
+res.ii = results(dds, contrast=c("condition", 'TRIM52KO.11d', 'UN.11d'))
+names.compare = paste0(unlist(strsplit(as.character(res.ii@elementMetadata$description[2]), ' '))[6:8], collapse = '_') 
+colnames(res.ii) = paste0(colnames(res.ii), '_', names.compare)
 res = data.frame(res, res.ii[, c(2, 5, 6)])
 
-res.ii = results(dds, contrast=c("condition", 'Dicer.KO', 'UN'))
-colnames(res.ii) = paste0(colnames(res.ii), '_', 'Dicer.KO', '.vs.UN')
+res.ii = results(dds, contrast=c("condition", 'DROKO.11d', 'UN.11d'))
+names.compare = paste0(unlist(strsplit(as.character(res.ii@elementMetadata$description[2]), ' '))[6:8], collapse = '_') 
+colnames(res.ii) = paste0(colnames(res.ii), '_', names.compare)
+res = data.frame(res, res.ii[, c(2, 5, 6)])
+
+res.ii = results(dds, contrast=c("condition", 'DGCR8KO.11d', 'UN.11d'))
+names.compare = paste0(unlist(strsplit(as.character(res.ii@elementMetadata$description[2]), ' '))[6:8], collapse = '_') 
+colnames(res.ii) = paste0(colnames(res.ii), '_', names.compare)
+res = data.frame(res, res.ii[, c(2, 5, 6)])
+
+res.ii = results(dds, contrast=c("condition", 'DicerKO.11d', 'UN.11d'))
+names.compare = paste0(unlist(strsplit(as.character(res.ii@elementMetadata$description[2]), ' '))[6:8], collapse = '_') 
+colnames(res.ii) = paste0(colnames(res.ii), '_', names.compare)
 res = data.frame(res, res.ii[, c(2, 5, 6)])
 
 
@@ -244,6 +268,5 @@ xx = xx[grep('^__', rownames(xx), invert = TRUE), ]
 write.csv(xx,
           file = paste0(resDir, "DESeq2.norm_all.KO.vs.UN_", Counts.to.Use,  version.analysis, ".csv"), 
           row.names = TRUE)
-
 
 dev.off()
