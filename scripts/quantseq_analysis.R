@@ -5,6 +5,7 @@
 ## Author: Jingkui Wang (jingkui.wang@imp.ac.at)
 ## Date of creation: Wed Jan 24 12:50:51 2018
 ##################################################
+rm(list = ls())
 library("openxlsx")
 require('DESeq2') 
 
@@ -22,12 +23,12 @@ check.quality.by.sample.comparisons = FALSE
 
 
 ### Directories to save results
-design.file = "../exp_design/R11129_quantseq_hg_KO_lines.xlsx"
-dataDir = "../../R11129_quantseq_hg/"
+design.file = "../exp_design/R11825_quantseq_hg_KO_lines.xlsx"
+dataDir = "../../R11825_quantseq_hg/"
 
 resDir = paste0("../results/", version.Data, "/")
 tabDir =  paste0(resDir, "tables/")
-RdataDir = paste0(resDir, "/Rdata/")
+RdataDir = paste0(resDir, "Rdata/")
 
 if(!dir.exists(resDir)){dir.create(resDir)}
 if(!dir.exists(tabDir)){dir.create(tabDir)}
@@ -41,7 +42,7 @@ if(file.exists(design.file)){
   design = read.xlsx(design.file, sheet = 1, colNames = TRUE, skipEmptyRows = TRUE)
   
   design = data.frame(design, stringsAsFactors = FALSE)
-  design = design[which(!is.na(design$sample.ID)), ]
+  design = design[which(!is.na(design$Sample.ID)), ]
   
   jj = which(colnames(design) == 'Sample.ID')
   design = design[, c(jj, setdiff(c(1:ncol(design)), jj))]
@@ -49,8 +50,8 @@ if(file.exists(design.file)){
   # select columns to keep
   #col2keep = c("Sample.ID", "Brief.Sample.Description")
   #design = design[, match(col2keep, colnames(design))]
-  design = design[, c(1:2)]
-  colnames(design) = c('SampleID', 'condition')
+  design = design[, c(1:3)]
+  colnames(design) = c('SampleID', 'genotype', 'condition')
   #design$condition = NA
   
   ############
@@ -59,9 +60,18 @@ if(file.exists(design.file)){
   Manual.correct.sampleInfos =  FALSE
   if(Manual.correct.sampleInfos){
     design$condition = gsub(' - well *', '', design$condition)
+    design$time = NA
+    design$time[grep('11d', design$condition)] = '11d'
+    design$time[grep('6d', design$condition)] = '6d'
     design$condition = gsub(' 11d[1-2]', '', design$condition)
-    design$condition[grep('UN', design$condition)] = 'UN'
-    design$condition = gsub(' ', '.', design$condition)
+    design$condition = gsub(' 6d[1-2]', '', design$condition)
+    design$condition = gsub(' 11d', '', design$condition)
+    design$condition = gsub(' 6d', '', design$condition)
+    
+    design$condition =  gsub('UN[1-2]', 'UN', design$condition)
+    design$condition = gsub('[-]', '', design$condition)
+    design$condition = gsub(' ', '', design$condition)
+    
   }
   
 }
@@ -111,9 +121,19 @@ Counts.to.Use = "UMI"
 QC.for.cpm = TRUE
 EDA.with.normalized.table = FALSE
 
+# merge technical repliates from R11129
+Merge.technicalRep.R11129 = FALSE
+if(Merge.technicalRep.R11129){
+  load(file = paste0('../results/Quantseq_R11129_quantseq_hg/Rdata/Design_Raw_readCounts_UMI_Quantseq_R11129_quantseq_hg_20210402.Rdata'))
+  aa.R11129 = aa
+  write.table(aa, file = paste0(resDir, 'readCount_UMIcountTable_R11129.txt'), sep = '\t', 
+              row.names = TRUE, col.names = TRUE, quote = FALSE)
+}
+
 load(file=paste0(RdataDir, 'Design_Raw_readCounts_UMI', version.analysis, '.Rdata'))
 source(RNAfunctions)
 source(RNA_QCfunctions)
+
 
 if(Counts.to.Use == 'readCounts'){
   all = process.countTable(all=aa, design = design, special.column = ".readCount", ensToGeneSymbol = TRUE)
@@ -130,6 +150,11 @@ raw = ceiling(as.matrix(all[, -1]))
 raw[which(is.na(raw))] = 0
 rownames(raw) = all$gene
 
+design$cc = paste0(design$genotype, '_', design$time, '_', design$condition)
+
+write.table(raw, file = paste0(resDir, 'UMIcountTable_allSamples.txt'), sep = '\t', row.names = TRUE, col.names = TRUE, quote = FALSE)
+write.table(design, file = paste0(resDir, 'sampleInfos_allSamples.txt'), sep = '\t', row.names = TRUE, col.names = TRUE, quote = FALSE)
+
 ###
 ### specify parameters for DESEeq2 and pairwise comparisons
 ###
@@ -145,12 +170,12 @@ if(QC.for.cpm){
   #index.qc = c(3, 5)[which(c(length(unique(design.matrix$genotype)), length(unique(design.matrix$promoter)))>1)]
   # samples.sels = setdiff(c(1:nrow(design)), which(design$condition == "none"))
   
-  samples.sels = c(1:nrow(design))
-  index.qc = c(1, 2)
+  samples.sels = which(design$genotype == 'HT1080')
+  index.qc = c(1, 5)
   
   source(RNA_QCfunctions)
   
-  pdfname = paste0(resDir, "/Data_qulity_assessment_AllSamples", version.analysis, "_", Counts.to.Use, ".pdf")
+  pdfname = paste0(resDir, "/Data_qulity_assessment_AllSamples_HT1080", version.analysis, "_", Counts.to.Use, ".pdf")
   pdf(pdfname, width = 12, height = 10)
   Check.RNAseq.Quality(read.count=raw[, samples.sels], design.matrix = design[samples.sels, index.qc])
   dev.off()
@@ -193,12 +218,15 @@ if(EDA.with.normalized.table){
 # 
 ########################################################
 ########################################################
-samples.sels = c(1:nrow(design))
+samples.sels = which(design$genotype == 'K562')
+design$condition = paste0(design$condition, '.', design$time)
+
 design.sels = design[samples.sels, ]
 
 pdfname = paste0(resDir, "/Data_KO_vs_WT_", Counts.to.Use, ".pdf")
 pdf(pdfname, width = 12, height = 10)
 par(cex = 1.0, las = 1, mgp = c(2,0.2,0), mar = c(3,2,2,0.2), tcl = -0.3)
+
 
 ##  start DE analysis
 dds <- DESeqDataSetFromMatrix(raw[, samples.sels], DataFrame(design[samples.sels, ]), design = ~ condition)
@@ -266,7 +294,7 @@ xx = data.frame(cpm, res, stringsAsFactors = FALSE)
 xx = xx[grep('^__', rownames(xx), invert = TRUE), ]
 
 write.csv(xx,
-          file = paste0(resDir, "DESeq2.norm_all.KO.vs.UN_", Counts.to.Use,  version.analysis, ".csv"), 
+          file = paste0(resDir, "DESeq2.norm_all.KO.vs.UN_", Counts.to.Use,  version.analysis, ".csv"), sep = '\t',
           row.names = TRUE)
 
 dev.off()
