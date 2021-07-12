@@ -312,6 +312,14 @@ mir1.targets = data.frame(term = 'mir1.targets', gene = targets$Gene.symbol,
                           stringsAsFactors = FALSE)
 mir1.targets = mir1.targets[which(!is.na(mir1.targets$gene)), ]
 
+xx = res
+xx = xx[match(mir1.targets$gene, rownames(xx)), ]
+length(which(xx$pvalue_mir1.mutant.vs.wt<0.05 & xx$log2FoldChange_mir1.mutant.vs.wt>0))
+length(which(xx$pvalue_mir1.mutant.vs.wt<0.05 & xx$log2FoldChange_mir1.mutant.vs.wt<0))
+
+write.table(xx, file = paste0(resDir, 'mir1.targets_up_downregulated.txt'), sep = '\t', col.names = TRUE, row.names = TRUE)
+
+
 gsea.mir1 <- GSEA(geneList, TERM2GENE = mir1.targets, TERM2NAME = NA, nPerm = 1000)
 
 #edo2 <- gseNCG(geneList, nPerm=1000)
