@@ -12,9 +12,9 @@ RNAfunctions = "/Volumes/groups/cochella/jiwang/scripts/functions/RNAseq_functio
 RNA_QCfunctions =  "/Volumes/groups/cochella/jiwang/scripts/functions/RNAseq_QCs.R"
 
 ### data verision and analysis version
-version.Data = 'Quantseq_R11129_quantseq_hg'
+version.Data = 'Quantseq_R11825_quantseq_hg'
 
-version.analysis = paste0("_", version.Data, "_20210402")
+version.analysis = paste0("_", version.Data, "_20210712")
 
 # Counts.to.Use = "UMIfr"
 Save.Tables = TRUE
